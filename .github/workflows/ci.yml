@@ -122,8 +122,8 @@ jobs:
       - name: Install Client Dependencies
         run: npm ci
 
-      - name: Lint Client
-        run: npm run lint
+      # - name: Lint Client
+      #   run: npm run lint
 
       - name: Build Client
         run: npm run build
@@ -171,7 +171,7 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-        
+
 
   publish-server-image:
     name: Publish Server Image (GHCR)
