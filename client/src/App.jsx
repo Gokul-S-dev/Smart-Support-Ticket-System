@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
+<<<<<<< HEAD
 import { AnimatePresence } from 'framer-motion'
+=======
+import { AnimatePresence, motion } from 'framer-motion'
+>>>>>>> 34813ff1c86d296cab8ea910a904fe74cdc202ad
 import './App.css'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'
@@ -43,6 +47,7 @@ function App() {
       return
     }
 
+<<<<<<< HEAD
     const hydrateSession = async () => {
       try {
         const headers = { headers: { Authorization: `Bearer ${token}` } }
@@ -64,6 +69,9 @@ function App() {
 
     setIsTicketLoading(true)
     hydrateSession()
+=======
+    initializeSession(token)
+>>>>>>> 34813ff1c86d296cab8ea910a904fe74cdc202ad
   }, [token])
 
   const isAdmin = currentUser?.role === 'admin'
@@ -95,6 +103,24 @@ function App() {
     }
   }
 
+<<<<<<< HEAD
+=======
+  const initializeSession = async (activeToken) => {
+    await Promise.all([loadCurrentUser(activeToken), loadTickets(activeToken)])
+  }
+
+  const loadCurrentUser = async (activeToken) => {
+    try {
+      const response = await api.get('/auth/me', authHeaders(activeToken))
+      setCurrentUser(response.data.user)
+      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(response.data.user))
+    } catch (error) {
+      const message = error.response?.data?.message || 'Could not load profile.'
+      setError(message)
+    }
+  }
+
+>>>>>>> 34813ff1c86d296cab8ea910a904fe74cdc202ad
   const login = async (email, password) => {
     const response = await api.post('/auth/login', { email, password })
     const nextToken = response.data.token
@@ -183,7 +209,16 @@ function App() {
       <div className="bg-orb orb-a" aria-hidden="true" />
       <div className="bg-orb orb-b" aria-hidden="true" />
       <main className="layout">
+<<<<<<< HEAD
         <section className="hero-panel">
+=======
+        <motion.section
+          className="hero-panel"
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+>>>>>>> 34813ff1c86d296cab8ea910a904fe74cdc202ad
           <p className="eyebrow">Smart Support Ticket System</p>
           <h1>Support operations, beautifully organized.</h1>
           <p className="lead">
@@ -195,6 +230,7 @@ function App() {
             <span className="chip">JWT Protected Routes</span>
             {currentUser ? <span className="chip">Role: {currentUser.role}</span> : null}
           </div>
+<<<<<<< HEAD
         </section>
 
         <AnimatePresence mode="wait">
@@ -202,6 +238,19 @@ function App() {
             <section
               key="auth"
               className="card auth-card"
+=======
+        </motion.section>
+
+        <AnimatePresence mode="wait">
+          {!token ? (
+            <motion.section
+              key="auth"
+              className="card auth-card"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.35 }}
+>>>>>>> 34813ff1c86d296cab8ea910a904fe74cdc202ad
             >
               <div className="card-head">
                 <h2>{authMode === 'login' ? 'Sign In' : 'Create Account'}</h2>
@@ -278,11 +327,23 @@ function App() {
                       : 'Register and Sign In'}
                 </button>
               </form>
+<<<<<<< HEAD
             </section>
           ) : (
             <section
               key="dashboard"
               className="dashboard-grid"
+=======
+            </motion.section>
+          ) : (
+            <motion.section
+              key="dashboard"
+              className="dashboard-grid"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.35 }}
+>>>>>>> 34813ff1c86d296cab8ea910a904fe74cdc202ad
             >
               <article className="card">
                 <div className="card-head">
@@ -355,8 +416,16 @@ function App() {
                 ) : (
                   <ul className="ticket-list">
                     {tickets.map((ticket, index) => (
+<<<<<<< HEAD
                       <li
                         key={ticket._id}
+=======
+                      <motion.li
+                        key={ticket._id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.05 }}
+>>>>>>> 34813ff1c86d296cab8ea910a904fe74cdc202ad
                       >
                         <header>
                           <h3>{ticket.title}</h3>
@@ -384,20 +453,39 @@ function App() {
                             </select>
                           ) : null}
                         </div>
+<<<<<<< HEAD
                       </li>
+=======
+                      </motion.li>
+>>>>>>> 34813ff1c86d296cab8ea910a904fe74cdc202ad
                     ))}
                   </ul>
                 )}
               </article>
+<<<<<<< HEAD
             </section>
+=======
+            </motion.section>
+>>>>>>> 34813ff1c86d296cab8ea910a904fe74cdc202ad
           )}
         </AnimatePresence>
 
         <AnimatePresence>
           {banner.text ? (
+<<<<<<< HEAD
             <div className={`banner ${banner.type}`}>
               {banner.text}
             </div>
+=======
+            <motion.div
+              className={`banner ${banner.type}`}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 16 }}
+            >
+              {banner.text}
+            </motion.div>
+>>>>>>> 34813ff1c86d296cab8ea910a904fe74cdc202ad
           ) : null}
         </AnimatePresence>
       </main>

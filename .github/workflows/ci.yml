@@ -1,56 +1,212 @@
-name: Server CI Pipeline
+name: Smart Support CI/CD
 
 on:
-    push:
-        branches: ["main"]
-    pull_request:
-        branches: ["main"]
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+concurrency:
+  group: smart-support-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-    build:
-        runs-on: ubuntu-latest
+  server-ci:
+    name: Server CI
+    runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
-        strategy:
-            matrix:
-                node-version: [18.x]
-        steps:
-            # 1. Checkout the repository
-            - name: Checkout Repository
-              uses: actions/checkout@v3
+    defaults:
+      run:
+        working-directory: server
 
-            # 2. Set up node.js
-            - name: Set up Node.js
-              uses: actions/setup-node@v3
-              with:
-                 node-version: ${{ matrix.node-version}}
-            
-            # 3. Install dependencies
-            - name: Install Dependencies
-              run: |
-                cd server
-                npm install
-            
-            # Create .env file with MongoDB URI and JWT secret
-            - name: Create .env file
-              run: |
-                echo "MONGO_URI=mongodb://admin:password123@localhost:27017/mydb?authSource=admin" > server/.env
-                echo "JWT_SECRET=supersecret" >> server/.env
-            
-            # 5. Run lint
-            - name: Run Lint
-              run: |
-                cd server
-                npmx eslint . || echo "No lint Configured"
-            
-            # 6. Run Tests
-            - name: Run Tests
-              run: |
-                cd server
-                npm test || echo "No tests Configured"
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-            # 7. Start server check
-            - name: Start Server Check (Health check)
-              run: |
-                cd server
-                node server.js &
-                sleep 5
-                curl -f http://localhost:3000 || exit 1
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install Server Dependencies
+        run: npm ci
+
+      - name: Create Server .env
+        run: |
+          echo "MONGO_URI=mongodb://127.0.0.1:27017/smart_support_ticket_test" > .env
+          echo "JWT_SECRET=ci-super-secret" >> .env
+
+      - name: Run Server Lint (if configured)
+        run: |
+          if npm run | grep -q " lint"; then
+            npm run lint
+          else
+            echo "No server lint script configured."
+          fi
+
+      - name: Run Server Tests (if configured)
+        run: |
+          TEST_SCRIPT=$(node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('package.json','utf8')); process.stdout.write(p.scripts?.test || '')")
+          if echo "$TEST_SCRIPT" | grep -qi "no test specified"; then
+            echo "Skipping placeholder test script."
+          else
+            npm test
+          fi
+
+      - name: API Smoke Tests
+        run: |
+          set -e
+          node server.js > server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID' EXIT
+
+          sleep 8
+          curl -f http://localhost:3000/
+
+          EMAIL="ci_user_$(date +%s)@example.com"
+
+          REGISTER_CODE=$(curl -s -o register.json -w "%{http_code}" -X POST http://localhost:3000/api/auth/register \
+            -H "Content-Type: application/json" \
+            -d "{\"name\":\"CI User\",\"email\":\"$EMAIL\",\"password\":\"Pass@123\"}")
+          test "$REGISTER_CODE" = "201"
+
+          LOGIN_CODE=$(curl -s -o login.json -w "%{http_code}" -X POST http://localhost:3000/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d "{\"email\":\"$EMAIL\",\"password\":\"Pass@123\"}")
+          test "$LOGIN_CODE" = "200"
+
+          TOKEN=$(node -e "const fs=require('fs'); const d=JSON.parse(fs.readFileSync('login.json','utf8')); if(!d.token){process.exit(1)}; process.stdout.write(d.token)")
+
+          CREATE_CODE=$(curl -s -o create.json -w "%{http_code}" -X POST http://localhost:3000/api/tickets \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $TOKEN" \
+            -d "{\"title\":\"CI ticket\",\"description\":\"Pipeline validation\"}")
+          test "$CREATE_CODE" = "201"
+
+          GET_CODE=$(curl -s -o get.json -w "%{http_code}" -X GET http://localhost:3000/api/tickets \
+            -H "Authorization: Bearer $TOKEN")
+          test "$GET_CODE" = "200"
+
+  client-ci:
+    name: Client CI
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: client
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install Client Dependencies
+        run: npm ci
+
+      - name: Lint Client
+        run: npm run lint
+
+      - name: Build Client
+        run: npm run build
+
+      - name: Upload Client Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-dist
+          path: client/dist
+
+  deploy-client-pages:
+    name: Deploy Client (GitHub Pages)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [server-ci, client-ci]
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install and Build Client
+        run: |
+          cd client
+          npm ci
+          npm run build
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: client/dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+        
+
+  publish-server-image:
+    name: Publish Server Image (GHCR)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [server-ci]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker Metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/smart-support-ticket-server
+          tags: |
+            type=raw,value=latest
+            type=sha
+
+      - name: Build and Push Image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./server
+          file: ./server/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
