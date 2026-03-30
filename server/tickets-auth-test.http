@@ -1,0 +1,56 @@
+@baseUrl = http://localhost:3000/api
+@email = authtest@example.com
+@password = Pass@123
+
+### Run order:
+### 1) Run Register once. If it already exists, continue to Login.
+### 2) Run Login, then Create, Get, Update.
+
+### 1) Register a new user
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Auth Test User",
+  "email": "{{email}}",
+  "password": "{{password}}",
+  "role": "user"
+}
+
+### 2) Login and capture JWT token
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### 3) Create ticket (protected route)
+# @name createTicket
+POST {{baseUrl}}/tickets
+Authorization: Bearer {{login.response.body.$.token}}
+Content-Type: application/json
+
+{
+  "title": "Auth middleware test",
+  "description": "Ticket created from REST Client .http file",
+  "status": "Open"
+}
+
+### 4) Get tickets (protected route)
+GET {{baseUrl}}/tickets
+Authorization: Bearer {{login.response.body.$.token}}
+
+### 5) Update ticket (uses created ticket id automatically)
+PUT {{baseUrl}}/tickets/{{createTicket.response.body.$._id}}
+Authorization: Bearer {{login.response.body.$.token}}
+Content-Type: application/json
+
+{
+  "status": "In Progress"
+}
+
+### 6) Negative test - no token (should return 401)
+GET {{baseUrl}}/tickets
